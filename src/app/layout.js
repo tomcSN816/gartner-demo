@@ -1,4 +1,5 @@
 import './globals.css';
+import Nav from '@/components/Nav';
 
 export const metadata = {
   title: 'Ordering Portal',
@@ -8,7 +9,10 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <Nav />
+        <main className="container">{children}</main>
+      </body>
     </html>
   );
 }
