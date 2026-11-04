@@ -2,11 +2,21 @@
   box-sizing: border-box;
 }
 
+:root {
+  --accent: #0b5fff;
+  --accent-tint: #e8f0ff;
+  --bg: #f5f6f8;
+  --surface: #ffffff;
+  --text: #1a1a1a;
+  --muted: #4a5160;
+  --border: var(--border);
+}
+
 body {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  color: #1a1a1a;
-  background: #f5f6f8;
+  color: var(--text);
+  background: var(--bg);
 }
 
 .container {
@@ -19,8 +29,8 @@ body {
   position: sticky;
   top: 0;
   z-index: 10;
-  background: #fff;
-  border-bottom: 1px solid #e2e5ea;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
 }
 
 .nav-inner {
@@ -36,7 +46,7 @@ body {
 .nav-brand {
   font-weight: 700;
   font-size: 1.1rem;
-  color: #1a1a1a;
+  color: var(--text);
   text-decoration: none;
 }
 
@@ -48,7 +58,7 @@ body {
 .nav-links a {
   padding: 0.5rem 0.9rem;
   border-radius: 6px;
-  color: #4a5160;
+  color: var(--muted);
   text-decoration: none;
   font-weight: 500;
 }
@@ -58,8 +68,8 @@ body {
 }
 
 .nav-links a.active {
-  color: #0b5fff;
-  background: #e8f0ff;
+  color: var(--accent);
+  background: var(--accent-tint);
 }
 
 .nav-toggle {
@@ -83,8 +93,8 @@ body {
     right: 0;
     flex-direction: column;
     padding: 0.5rem 1.25rem 1rem;
-    background: #fff;
-    border-bottom: 1px solid #e2e5ea;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
   }
 
   .nav-links.open {
@@ -94,15 +104,136 @@ body {
 
 .embed-frame {
   width: 100%;
-  border: 1px solid #e2e5ea;
+  border: 1px solid var(--border);
   border-radius: 8px;
-  background: #fff;
+  background: var(--surface);
 }
 
 .embed-empty {
   padding: 2rem;
   border: 1px dashed #c3c8d1;
   border-radius: 8px;
-  color: #4a5160;
-  background: #fff;
+  color: var(--muted);
+  background: var(--surface);
+}
+
+.nav-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.nav-logo,
+.reseller-logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.nav-signout {
+  padding: 0.5rem 0.9rem;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.nav-signout:hover {
+  background: var(--accent-tint);
+}
+
+.login-card {
+  max-width: 560px;
+  margin: 1rem auto;
+  padding: 2rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  color: var(--text);
+}
+
+.login-card h1 {
+  margin: 0 0 0.25rem;
+}
+
+.login-sub {
+  margin: 0 0 1.25rem;
+  color: var(--muted);
+}
+
+.reseller-grid {
+  display: grid;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+
+.reseller-option {
+  display: grid;
+  grid-template-columns: 32px 1fr;
+  column-gap: 0.75rem;
+  align-items: center;
+  padding: 0.75rem;
+  border: 2px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+.reseller-option.selected {
+  border-color: var(--accent);
+  background: var(--accent-tint);
+}
+
+.reseller-logo {
+  grid-row: span 2;
+}
+
+.reseller-name {
+  font-weight: 600;
+}
+
+.reseller-tagline {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.login-field {
+  display: block;
+  margin-bottom: 0.9rem;
+  font-weight: 500;
+}
+
+.login-field input {
+  display: block;
+  width: 100%;
+  margin-top: 0.3rem;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font: inherit;
+}
+
+.login-submit {
+  width: 100%;
+  padding: 0.75rem;
+  border: 0;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
 }
