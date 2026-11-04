@@ -25,10 +25,19 @@ const CONFIGURATOR_EVENTS = [
 
 // Mirrors the Product Catalog + Transaction configurator widgets on the
 // instance's Business Portal: Customize swaps the catalog for the configurator.
-export default function ServiceNowCatalog({ onEvent, amendLineId, amendLabel }) {
-  const router = useRouter();
+export default function ServiceNowCatalog({ onEvent, logikLayout, logikTokens }) {
   const hostRef = useRef(null);
   const onEventRef = useRef(onEvent);
+  // Logik `layout` param: set to the reseller's layout while configuring.
+  const logikLayoutRef = useRef(logikLayout);
+  const layoutActiveRef = useRef(false);
+
+  const logikTokensRef = useRef(logikTokens);
+
+  useEffect(() => {
+    logikLayoutRef.current = logikLayout;
+    logikTokensRef.current = logikTokens;
+  }, [logikLayout, logikTokens]);
   const [status, setStatus] = useState('loading');
   const [error, setError] = useState('');
 
@@ -44,16 +53,15 @@ export default function ServiceNowCatalog({ onEvent, amendLineId, amendLabel }) 
     const tenant = process.env.NEXT_PUBLIC_LOGIK_TENANT_URL;
     const nativeFetch = window.fetch;
     const nativeXhrOpen = XMLHttpRequest.prototype.open;
-
-    // TEMP debug: see which cart/commit events the configurator fires.
-    const nativeDispatch = EventTarget.prototype.dispatchEvent;
-    EventTarget.prototype.dispatchEvent = function (event) {
-      if (/COMMIT|SUBMIT|SAVE|CART|CONFIGURATION/i.test(event.type)) {
-        console.log('[event]', event.type, event.detail?.payload ?? event.detail);
+    // Adds the reseller's Logik layout (after Configure is clicked).
+    const proxyPath = (url) => {
+      let path = `/logik${url.slice(tenant.length)}`;
+      const layout = layoutActiveRef.current && logikLayoutRef.current;
+      if (layout && !/[?&]layout=/.test(path)) {
+        path += `${path.includes('?') ? '&' : '?'}layout=${encodeURIComponent(layout)}`;
       }
-      return nativeDispatch.call(this, event);
+      return path;
     };
-
     if (tenant) {
       // The Logik UI makes its API calls with axios, which uses XHR.
       XMLHttpRequest.prototype.open = function (method, url, ...rest) {
@@ -61,17 +69,49 @@ export default function ServiceNowCatalog({ onEvent, amendLineId, amendLabel }) 
         return nativeXhrOpen.call(
           this,
           method,
-          u.startsWith(tenant) ? `/logik${u.slice(tenant.length)}` : url,
+          u.startsWith(tenant) ? proxyPath(u) : url,
           ...rest
         );
       };
       window.fetch = (input, init) => {
         const url = typeof input === 'string' ? input : input instanceof Request ? input.url : String(input);
         if (!url.startsWith(tenant)) return nativeFetch(input, init);
-        const proxied = `/logik${url.slice(tenant.length)}`;
+        const proxied = proxyPath(url);
         return nativeFetch(input instanceof Request ? new Request(proxied, input) : proxied, init);
       };
     }
+
+    // Re-colour the Logik UI by overriding its --lgk-* tokens in the document
+    // and in every shadow root (the widgets render inside shadow DOM).
+    const sheet = new CSSStyleSheet();
+    const adopted = new WeakSet();
+    const observers = [];
+    const setTheme = (on) => {
+      const tokens = logikTokensRef.current;
+      if (!on || !tokens) return sheet.replaceSync('');
+      const decls = Object.entries(tokens)
+        .map(([k, v]) => `--lgk-${k}: ${v} !important;`)
+        .join(' ');
+      sheet.replaceSync(`:host, :root, * { ${decls} }`);
+    };
+    const adopt = (root) => {
+      if (adopted.has(root)) return;
+      adopted.add(root);
+      root.adoptedStyleSheets = [...root.adoptedStyleSheets, sheet];
+      const mo = new MutationObserver(() => scan(root));
+      mo.observe(root, { childList: true, subtree: true });
+      observers.push(mo);
+    };
+    const scan = (root) => {
+      root.querySelectorAll('*').forEach((el) => {
+        if (el.shadowRoot) {
+          adopt(el.shadowRoot);
+          scan(el.shadowRoot);
+        }
+      });
+    };
+    adopt(document);
+    scan(document);
 
     async function mount() {
       try {
@@ -97,6 +137,8 @@ export default function ServiceNowCatalog({ onEvent, amendLineId, amendLabel }) 
         configurator.style.display = 'none';
 
         const showCatalog = () => {
+          layoutActiveRef.current = false;
+          setTheme(false);
           configurator.style.display = 'none';
           catalog.style.display = 'block';
         };
@@ -133,7 +175,23 @@ export default function ServiceNowCatalog({ onEvent, amendLineId, amendLabel }) 
           'SN_PRODUCT_CATALOG#CUSTOMIZE': (e) => {
             const payload = e.detail?.payload;
             emit('SN_PRODUCT_CATALOG#CUSTOMIZE', payload);
-            openConfigurator(payload?.productData?.productId);
+
+            const details = buildEntityDetails({
+              timestamp: Date.now(),
+              productId: payload?.productData?.productId,
+            });
+            // Net effect of the widget's handler + server script when
+            // advanced configuration is enabled: pricing is not skipped.
+            details.metadata.contextParams.skip_pricing = false;
+
+            // Logik calls from here on carry layout=<reseller layout>.
+            layoutActiveRef.current = true;
+            setTheme(true);
+            scan(document);
+            configurator.setAttribute('entity-details', JSON.stringify(details));
+            configurator.setAttribute('channel', details.metadata.sourceSystem);
+            catalog.style.display = 'none';
+            configurator.style.display = 'block';
           },
         });
 
@@ -169,6 +227,8 @@ export default function ServiceNowCatalog({ onEvent, amendLineId, amendLabel }) 
     mount();
     return () => {
       cancelled = true;
+      observers.forEach((o) => o.disconnect());
+      document.adoptedStyleSheets = document.adoptedStyleSheets.filter((x) => x !== sheet);
       window.fetch = nativeFetch;
       XMLHttpRequest.prototype.open = nativeXhrOpen;
       EventTarget.prototype.dispatchEvent = nativeDispatch;

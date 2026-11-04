@@ -1,5 +1,6 @@
 import './globals.css';
 import Nav from '@/components/Nav';
+import { getCurrentReseller } from '@/lib/session';
 
 export const metadata = {
   title: 'Ordering Portal',
@@ -7,10 +8,13 @@ export const metadata = {
 };
 
 export default function RootLayout({ children }) {
+  const reseller = getCurrentReseller();
   return (
     <html lang="en">
-      <body>
-        <Nav />
+      <body style={reseller?.theme}>
+        <Nav
+          reseller={reseller && { name: reseller.name, initials: reseller.initials }}
+        />
         <main className="container">{children}</main>
       </body>
     </html>
