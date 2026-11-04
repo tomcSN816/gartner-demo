@@ -23,6 +23,11 @@ async function proxy(request, { params }) {
     redirect: 'manual',
   });
 
+  // TEMP debug: what Logik returns when a configuration is saved.
+  if (request.nextUrl.searchParams.get('save') === 'true') {
+    console.log('[logik-save]', upstream.status, (await upstream.clone().text()).slice(0, 3000));
+  }
+
   const out = new Headers(upstream.headers);
   // fetch() already decoded the body, and CORS headers are irrelevant same-origin.
   ['content-encoding', 'content-length', 'transfer-encoding'].forEach((h) => out.delete(h));

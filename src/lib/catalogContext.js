@@ -5,8 +5,9 @@
 // contact/opened_by and the default cart price list for pricelist. We proxy
 // as the SN_USERNAME user ("admin"), so these are that user's sys_id and the
 // "Standard Price List" (USD) on the configured instance.
-const PRICELIST_ID = '19d29513d0e63110f8770dbf976be122';
-const USER_ID = '6816f79cc0a8016401c5a33be04be441';
+const PRICELIST_ID = '94ed8a972bb243104deaf02ac891bf4f';
+const USER_ID = 'c60f135a2bba83104deaf02ac891bfbd'; // Julie Lewis (Boxeo contact)
+export const ACCOUNT_ID = '425ed7962bba83104deaf02ac891bf4c'; // Boxeo
 
 export function buildEntityDetails(overrides = {}) {
   return {
@@ -20,7 +21,7 @@ export function buildEntityDetails(overrides = {}) {
     },
     readonly: false,
     headerContext: {
-      account: '',
+      account: ACCOUNT_ID,
       consumer: '',
       pricelist: PRICELIST_ID,
       currency: 'USD',

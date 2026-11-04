@@ -3,12 +3,14 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import CartBadge from '@/components/CartBadge';
 
 const LINKS = [
   { href: '/', label: 'Home' },
   { href: '/catalog', label: 'Catalog' },
   { href: '/cart', label: 'Cart' },
   { href: '/orders', label: 'Orders' },
+  { href: '/contracts', label: 'Contracts' },
   { href: '/account', label: 'Account' },
 ];
 
@@ -43,6 +45,7 @@ export default function Nav() {
               onClick={() => setOpen(false)}
             >
               {label}
+              {href === '/cart' && <CartBadge />}
             </Link>
           ))}
         </nav>
