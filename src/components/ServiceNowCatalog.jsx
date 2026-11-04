@@ -1,12 +1,15 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   buildEntityDetails,
   UX_THEME_ID,
   CATALOG_TEMPLATE_ID,
   CONFIGURATOR_TEMPLATE_ID,
 } from '@/lib/catalogContext';
+import { CART_EVENTS, notifyCartChanged } from '@/lib/cartEvents';
+import { getSoldProductConfigInput } from '@/lib/servicenow';
 
 const CATALOG_EVENTS = [
   'PRODUCT_CATALOG#ADD_TO_CART',
@@ -142,7 +145,27 @@ export default function ServiceNowCatalog({ onEvent, logikLayout, logikTokens })
 
         const emit = (name, payload) => {
           console.log('[catalog]', name, payload);
+          if (CART_EVENTS.has(name)) notifyCartChanged();
           onEventRef.current?.(name, payload);
+        };
+
+        const openConfigurator = (productId) => {
+          const details = buildEntityDetails({ timestamp: Date.now(), productId });
+          // Net effect of the widget's handler + server script when
+          // advanced configuration is enabled: pricing is not skipped.
+          details.metadata.contextParams.skip_pricing = false;
+
+          configurator.setAttribute('entity-details', JSON.stringify(details));
+          configurator.setAttribute('channel', details.metadata.sourceSystem);
+          catalog.style.display = 'none';
+          configurator.style.display = 'block';
+        };
+
+        const openAmendment = async (lineId) => {
+          const details = await getSoldProductConfigInput(lineId);
+          configurator.setAttribute('entity-details', JSON.stringify(details));
+          catalog.style.display = 'none';
+          configurator.style.display = 'block';
         };
 
         mod.setEvents(catalog, {
@@ -179,6 +202,10 @@ export default function ServiceNowCatalog({ onEvent, logikLayout, logikTokens })
               name,
               (e) => {
                 emit(name, e.detail?.payload);
+                if (amendLineId && name.endsWith('COMMIT_REPONSE')) {
+                  router.push('/orders');
+                  return;
+                }
                 showCatalog();
               },
             ])
@@ -187,6 +214,9 @@ export default function ServiceNowCatalog({ onEvent, logikLayout, logikTokens })
 
         hostRef.current.replaceChildren(catalog, configurator);
         setStatus('ready');
+        // Arrived from a contract line's Amend button: open that line's saved
+        // configuration (as the instance's "Modify entire line" does).
+        if (amendLineId) await openAmendment(amendLineId);
       } catch (e) {
         console.error('[catalog] failed to mount', e);
         setError(String(e));
@@ -201,12 +231,18 @@ export default function ServiceNowCatalog({ onEvent, logikLayout, logikTokens })
       document.adoptedStyleSheets = document.adoptedStyleSheets.filter((x) => x !== sheet);
       window.fetch = nativeFetch;
       XMLHttpRequest.prototype.open = nativeXhrOpen;
+      EventTarget.prototype.dispatchEvent = nativeDispatch;
     };
   }, []);
 
   return (
     <div>
       {status === 'loading' && <p>Loading catalog…</p>}
+      {amendLineId && (
+        <div className="card amend-banner">
+          <span className="pill">Amendment</span> {amendLabel || 'Modifying an existing contract line'}
+        </div>
+      )}
       {status === 'error' && <div className="embed-empty">Catalog failed to load: {error}</div>}
       <div ref={hostRef} />
     </div>

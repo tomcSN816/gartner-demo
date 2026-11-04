@@ -237,3 +237,121 @@ body {
   font-weight: 600;
   cursor: pointer;
 }
+
+.cart-badge {
+  display: inline-block;
+  min-width: 1.25rem;
+  margin-left: 0.4rem;
+  padding: 0 0.4rem;
+  border-radius: 999px;
+  background: #0b5fff;
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.25rem;
+  text-align: center;
+}
+
+.card {
+  padding: 1rem 1.25rem;
+  margin: 1rem 0;
+  background: #fff;
+  border: 1px solid #e2e5ea;
+  border-radius: 8px;
+}
+
+.cart-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2rem;
+}
+
+.cart-head .btn {
+  margin-left: auto;
+}
+
+.totals {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 2rem;
+}
+
+.muted {
+  color: #6b7280;
+  font-size: 0.85rem;
+}
+
+.pill {
+  display: inline-block;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  background: #eef1f6;
+  color: #374151;
+  font-size: 0.8rem;
+}
+
+.btn {
+  padding: 0.45rem 0.9rem;
+  border: 1px solid #c3c8d1;
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.btn:hover {
+  background: #f0f2f5;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+  border: 1px solid #e2e5ea;
+  border-radius: 8px;
+}
+
+.table th,
+.table td {
+  padding: 0.65rem 0.9rem;
+  border-bottom: 1px solid #eef0f3;
+  text-align: left;
+}
+
+.table th {
+  font-size: 0.8rem;
+  color: #6b7280;
+  font-weight: 600;
+}
+
+.table .num {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.table tr.clickable {
+  cursor: pointer;
+}
+
+.table tr.clickable:hover {
+  background: #f7f9fc;
+}
+
+.table .subrow {
+  background: #fafbfc;
+}
+
+.table.inner {
+  border: 0;
+  background: transparent;
+}
+
+@media (max-width: 720px) {
+  .table {
+    display: block;
+    overflow-x: auto;
+  }
+}
+
+.amend-banner { margin: 0 0 12px; }

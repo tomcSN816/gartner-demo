@@ -22,6 +22,7 @@ export const config = {
 };
 
 export function middleware(request) {
+  if (request.method !== 'GET') console.log('[sn-proxy]', request.method, request.nextUrl.pathname);
   const instance = process.env.SN_INSTANCE;
   if (!instance) {
     return new NextResponse('SN_INSTANCE is not configured', { status: 500 });
