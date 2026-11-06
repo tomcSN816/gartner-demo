@@ -16,10 +16,11 @@ async function proxy(request, { params }) {
   HOP_BY_HOP.forEach((h) => headers.delete(h));
 
   const hasBody = !['GET', 'HEAD'].includes(request.method);
+  const bodyBuf = hasBody ? await request.arrayBuffer() : undefined;
   const upstream = await fetch(target, {
     method: request.method,
     headers,
-    body: hasBody ? await request.arrayBuffer() : undefined,
+    body: bodyBuf,
     redirect: 'manual',
   });
 

@@ -25,7 +25,8 @@ const CONFIGURATOR_EVENTS = [
 
 // Mirrors the Product Catalog + Transaction configurator widgets on the
 // instance's Business Portal: Customize swaps the catalog for the configurator.
-export default function ServiceNowCatalog({ onEvent, logikLayout, logikTokens }) {
+export default function ServiceNowCatalog({ onEvent, logikLayout, logikTokens, amendLineId, amendLabel }) {
+  const router = useRouter();
   const hostRef = useRef(null);
   const onEventRef = useRef(onEvent);
   // Logik `layout` param: set to the reseller's layout while configuring.
@@ -163,6 +164,18 @@ export default function ServiceNowCatalog({ onEvent, logikLayout, logikTokens })
 
         const openAmendment = async (lineId) => {
           const details = await getSoldProductConfigInput(lineId);
+          // Same as Customize: the instance script returns skip_pricing=true,
+          // which leaves every amended line at $0.00.
+          details.metadata.contextParams.skip_pricing = false;
+          // The script returns no header context (account, price list, currency);
+          // without a price list nothing can be priced. Reuse Customize's.
+          const base = buildEntityDetails();
+          details.headerContext = { ...base.headerContext, ...details.headerContext };
+          details.settings = { ...base.settings, ...details.settings };
+          configurator.setAttribute('channel', base.metadata.sourceSystem);
+          layoutActiveRef.current = true;
+          setTheme(true);
+          scan(document);
           configurator.setAttribute('entity-details', JSON.stringify(details));
           catalog.style.display = 'none';
           configurator.style.display = 'block';
@@ -231,7 +244,6 @@ export default function ServiceNowCatalog({ onEvent, logikLayout, logikTokens })
       document.adoptedStyleSheets = document.adoptedStyleSheets.filter((x) => x !== sheet);
       window.fetch = nativeFetch;
       XMLHttpRequest.prototype.open = nativeXhrOpen;
-      EventTarget.prototype.dispatchEvent = nativeDispatch;
     };
   }, []);
 
