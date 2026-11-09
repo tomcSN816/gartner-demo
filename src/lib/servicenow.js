@@ -107,7 +107,7 @@ export async function getContractLines(contractId) {
     limit: 100,
     displayValue: 'all',
   });
-  return rows.map((r) => {
+  const lines = rows.map((r) => {
     const o = {};
     for (const k of CONTRACT_LINE_FIELDS) o[k] = r[k]?.display_value ?? '';
     o.sys_id = r.sys_id?.value ?? r.sys_id;
@@ -116,6 +116,9 @@ export async function getContractLines(contractId) {
     o.isTopLine = !r.parent_contract_line?.value;
     return o;
   });
+  // The query has no ordering, so the root can land anywhere. Put it first; sort is stable,
+  // so every other line keeps the order the instance returned.
+  return lines.sort((a, b) => b.isTopLine - a.isTopLine);
 }
 
 // Same server script the instance's "Modify entire line" action runs. Returns the
