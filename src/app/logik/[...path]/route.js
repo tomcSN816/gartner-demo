@@ -29,17 +29,6 @@ async function proxy(request, { params }) {
     redirect: 'manual',
   });
 
-  // TEMP debug: auth exchange diagnostics (names only, no values).
-  if (target.pathname.endsWith('/auth/exchange')) {
-    const raw = bodyBuf ? Buffer.from(bodyBuf).toString('utf8') : '';
-    console.log(
-      '[logik-exchange]', upstream.status,
-      'headers:', [...headers.keys()].join(','),
-      'fields:', [...new URLSearchParams(raw).keys()].join(','),
-      'resp:', upstream.status >= 400 ? (await upstream.clone().text()).slice(0, 500) : ''
-    );
-  }
-
   // TEMP debug: what Logik returns when a configuration is saved.
   if (request.nextUrl.searchParams.get('save') === 'true') {
     console.log('[logik-save]', upstream.status, (await upstream.clone().text()).slice(0, 3000));
