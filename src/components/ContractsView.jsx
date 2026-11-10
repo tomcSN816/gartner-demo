@@ -2,9 +2,46 @@
 
 import { Fragment, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { getContracts, getContractLines } from '@/lib/servicenow';
+import { getContracts, getContractLines, terminateContract, todayIso } from '@/lib/servicenow';
 
 const money = (v) => v || '$0.00';
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+const ACTIVE = /^active$/i;
+const ACTIVE_OR_DRAFT = /^(active|draft)$/i;
+const CANCELLED = /^cancel+ed$/i;
+
+// Pill colour per line: red once the line is cancelled; green when the line is Active and
+// nothing beneath it has gone wrong. A Draft line below doesn't count against it: those are
+// future-dated lines (e.g. later ramp segments) that are meant to be Draft while the contract
+// is Active. Cancelled, Expired or Suspended lines below do, and leave the pill neutral.
+function lineTones(lines) {
+  const kids = new Map();
+  for (const l of lines) kids.set(l.parentId, [...(kids.get(l.parentId) ?? []), l]);
+  const healthyBelow = (l, depth = 0) =>
+    depth < 20 &&
+    (kids.get(l.sys_id) ?? []).every((k) => ACTIVE_OR_DRAFT.test(k.state) && healthyBelow(k, depth + 1));
+  return Object.fromEntries(
+    lines.map((l) => [l.sys_id, CANCELLED.test(l.state) ? 'bad' : ACTIVE.test(l.state) && healthyBelow(l) ? 'ok' : '']),
+  );
+}
+
+// What to tell the user once a terminate finishes. When lines are left over, say which ones: lines
+// with no start date (e.g. Draft split lines the platform adds) are reported as such, because
+// they aren't waiting on the effective date.
+function terminationSummary(contract, { orderNumber, lines, settled, contractCancelled }) {
+  if (settled) return `${contract.number} terminated (order ${orderNumber}). All lines are now cancelled.`;
+  const left = lines.filter((l) => !CANCELLED.test(l.state));
+  const names = left.map((l) => l.number).join(', ');
+  const one = left.length === 1;
+  const reason = left.every((l) => !l.starts)
+    ? `${one ? 'has' : 'have'} no start date, so ${one ? 'it wasn’t' : 'they weren’t'} cancelled`
+    : `${one ? 'isn’t' : 'aren’t'} cancelled yet (a future effective date can delay this)`;
+  return (
+    `Order ${orderNumber} completed and ${lines.length - left.length} of ${lines.length} lines are cancelled. ` +
+    `${left.length} ${one ? 'line' : 'lines'} ${reason}: ${names}.` +
+    (contractCancelled ? '' : ` ${contract.number} is still ${contract.state || 'active'}.`)
+  );
+}
 
 export default function ContractsView() {
   const router = useRouter();
@@ -12,6 +49,11 @@ export default function ContractsView() {
   const [error, setError] = useState('');
   const [openId, setOpenId] = useState(null);
   const [lines, setLines] = useState({});
+  // { id, step } while a terminate is running; termMsg is { id, kind, text } after one finishes.
+  const [terminating, setTerminating] = useState(null);
+  const [termMsg, setTermMsg] = useState(null);
+  // The open Terminate form: { id, line, date, reason, min, max }.
+  const [form, setForm] = useState(null);
 
   useEffect(() => {
     getContracts().then(setContracts).catch((e) => setError(String(e.message ?? e)));
@@ -36,9 +78,47 @@ export default function ContractsView() {
     router.push(`/catalog?amendLine=${line.sys_id}&label=${label}`);
   }
 
+  // Terminate opens a small form (effective date + reason) under the contract row.
+  function startTerminate(line, contract) {
+    const range = [contract.starts, contract.ends].map((d) => (ISO_DATE.test(d ?? '') ? d : ''));
+    let date = todayIso();
+    if (range[0] && date < range[0]) date = range[0];
+    if (range[1] && date > range[1]) date = range[1];
+    setTermMsg(null);
+    setForm({ id: contract.sys_id, line, date, reason: 'Terminated from the portal', min: range[0], max: range[1] });
+  }
+
+  // Terminate = disconnect the whole contract through a disconnect order. The platform
+  // then cancels the contract and all its lines, which we re-read and show.
+  async function terminate(contract) {
+    const { line, date, reason } = form;
+    const id = contract.sys_id;
+    setForm(null);
+    setTermMsg(null);
+    setTerminating({ id, step: 'Starting…' });
+    try {
+      const result = await terminateContract({
+        contractId: id,
+        rootSoldProductId: line.soldProductId,
+        reason: reason.trim(),
+        effectiveDate: date,
+        onProgress: (step) => setTerminating({ id, step }),
+      });
+      setLines((l) => ({ ...l, [id]: result.lines }));
+      getContracts().then(setContracts).catch(() => {});
+      setTermMsg({ id, kind: result.settled ? 'ok' : 'warn', text: terminationSummary(contract, result) });
+    } catch (e) {
+      setTermMsg({ id, kind: 'error', text: `Couldn’t terminate ${contract.number}: ${String(e.message ?? e)}` });
+    } finally {
+      setTerminating(null);
+    }
+  }
+
   if (error) return <div className="embed-empty">Couldn’t load contracts: {error}</div>;
   if (!contracts) return <p>Loading contracts…</p>;
   if (!contracts.length) return <p>No contracts for this account.</p>;
+
+  const tones = Object.fromEntries(Object.entries(lines).map(([id, ls]) => [id, lineTones(ls)]));
 
   return (
     <>
@@ -71,6 +151,43 @@ export default function ContractsView() {
               {openId === c.sys_id && (
                 <tr>
                   <td colSpan={8} className="subrow">
+                    {form?.id === c.sys_id && (
+                      <form
+                        className="term-form"
+                        onSubmit={(e) => {
+                          e.preventDefault();
+                          terminate(c);
+                        }}
+                      >
+                        <p>
+                          <strong>Terminate {c.number}?</strong> This cancels the whole contract and all of its
+                          lines and can’t be undone.
+                        </p>
+                        <label>
+                          Effective cancellation date
+                          <input
+                            type="date"
+                            required
+                            value={form.date}
+                            min={form.min || undefined}
+                            max={form.max || undefined}
+                            onChange={(e) => setForm({ ...form, date: e.target.value })}
+                          />
+                        </label>
+                        <label>
+                          Reason
+                          <input
+                            type="text"
+                            value={form.reason}
+                            onChange={(e) => setForm({ ...form, reason: e.target.value })}
+                          />
+                        </label>
+                        <button className="btn danger" type="submit">Confirm termination</button>
+                        <button className="btn" type="button" onClick={() => setForm(null)}>Cancel</button>
+                      </form>
+                    )}
+                    {terminating?.id === c.sys_id && <p className="muted">{terminating.step}</p>}
+                    {termMsg?.id === c.sys_id && <p className={`term-msg ${termMsg.kind}`}>{termMsg.text}</p>}
                     {!lines[c.sys_id] ? (
                       'Loading lines…'
                     ) : lines[c.sys_id].length === 0 ? (
@@ -82,12 +199,17 @@ export default function ContractsView() {
                             <tr key={l.sys_id}>
                               <td>{l.name}</td>
                               <td className="num">Qty {l.quantity}</td>
-                              <td><span className="pill">{l.state}</span></td>
+                              <td><span className={`pill ${tones[c.sys_id]?.[l.sys_id] ?? ''}`}>{l.state}</span></td>
                               <td>{l.starts || '—'} → {l.ends || '—'}</td>
                               <td className="num">{money(l.annual_recurring_price)}</td>
                               <td className="num">
                                 {l.isTopLine && (
-                                  <button className="btn" onClick={() => amend(l, c)}>Amend</button>
+                                  <button className="btn" disabled={!!terminating} onClick={() => amend(l, c)}>Amend</button>
+                                )}
+                                {l.isTopLine && c.state?.toLowerCase() === 'active' && (
+                                  <button className="btn danger" disabled={!!terminating} onClick={() => startTerminate(l, c)}>
+                                    {terminating?.id === c.sys_id ? 'Terminating…' : 'Terminate'}
+                                  </button>
                                 )}
                               </td>
                             </tr>
