@@ -6,8 +6,8 @@
 // as the SN_USERNAME user ("admin"), so these are that user's sys_id and the
 // "Standard Price List" (USD) on the configured instance.
 const PRICELIST_ID = '94ed8a972bb243104deaf02ac891bf4f';
-const USER_ID = 'c60f135a2bba83104deaf02ac891bfbd'; // Julie Lewis (Boxeo contact)
-export const ACCOUNT_ID = '425ed7962bba83104deaf02ac891bf4c'; // Boxeo
+const USER_ID = '25528f213bc3cb10d5260fa693e45a11'; // James Nakamura (Cascadia Cyber Systems primary contact)
+export const ACCOUNT_ID = 'fc320b213bc3cb10d5260fa693e45aac'; // Cascadia Cyber Systems
 
 export function buildEntityDetails(overrides = {}) {
   return {

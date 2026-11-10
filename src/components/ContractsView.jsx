@@ -6,6 +6,42 @@ import { getContracts, getContractLines, terminateContract, todayIso } from '@/l
 
 const money = (v) => v || '$0.00';
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+const ACTIVE = /^active$/i;
+const ACTIVE_OR_DRAFT = /^(active|draft)$/i;
+const CANCELLED = /^cancel+ed$/i;
+
+// Pill colour per line: red once the line is cancelled; green when the line is Active and
+// nothing beneath it has gone wrong. A Draft line below doesn't count against it: those are
+// future-dated lines (e.g. later ramp segments) that are meant to be Draft while the contract
+// is Active. Cancelled, Expired or Suspended lines below do, and leave the pill neutral.
+function lineTones(lines) {
+  const kids = new Map();
+  for (const l of lines) kids.set(l.parentId, [...(kids.get(l.parentId) ?? []), l]);
+  const healthyBelow = (l, depth = 0) =>
+    depth < 20 &&
+    (kids.get(l.sys_id) ?? []).every((k) => ACTIVE_OR_DRAFT.test(k.state) && healthyBelow(k, depth + 1));
+  return Object.fromEntries(
+    lines.map((l) => [l.sys_id, CANCELLED.test(l.state) ? 'bad' : ACTIVE.test(l.state) && healthyBelow(l) ? 'ok' : '']),
+  );
+}
+
+// What to tell the user once a terminate finishes. When lines are left over, say which ones: lines
+// with no start date (e.g. Draft split lines the platform adds) are reported as such, because
+// they aren't waiting on the effective date.
+function terminationSummary(contract, { orderNumber, lines, settled, contractCancelled }) {
+  if (settled) return `${contract.number} terminated (order ${orderNumber}). All lines are now cancelled.`;
+  const left = lines.filter((l) => !CANCELLED.test(l.state));
+  const names = left.map((l) => l.number).join(', ');
+  const one = left.length === 1;
+  const reason = left.every((l) => !l.starts)
+    ? `${one ? 'has' : 'have'} no start date, so ${one ? 'it wasn’t' : 'they weren’t'} cancelled`
+    : `${one ? 'isn’t' : 'aren’t'} cancelled yet (a future effective date can delay this)`;
+  return (
+    `Order ${orderNumber} completed and ${lines.length - left.length} of ${lines.length} lines are cancelled. ` +
+    `${left.length} ${one ? 'line' : 'lines'} ${reason}: ${names}.` +
+    (contractCancelled ? '' : ` ${contract.number} is still ${contract.state || 'active'}.`)
+  );
+}
 
 export default function ContractsView() {
   const router = useRouter();
@@ -70,13 +106,7 @@ export default function ContractsView() {
       });
       setLines((l) => ({ ...l, [id]: result.lines }));
       getContracts().then(setContracts).catch(() => {});
-      setTermMsg({
-        id,
-        kind: result.settled ? 'ok' : 'warn',
-        text: result.settled
-          ? `${contract.number} terminated (order ${result.orderNumber}). All lines are now cancelled.`
-          : `Order ${result.orderNumber} completed, but some lines aren’t cancelled yet (a future effective date can delay this). Reload to see their current state.`,
-      });
+      setTermMsg({ id, kind: result.settled ? 'ok' : 'warn', text: terminationSummary(contract, result) });
     } catch (e) {
       setTermMsg({ id, kind: 'error', text: `Couldn’t terminate ${contract.number}: ${String(e.message ?? e)}` });
     } finally {
@@ -87,6 +117,8 @@ export default function ContractsView() {
   if (error) return <div className="embed-empty">Couldn’t load contracts: {error}</div>;
   if (!contracts) return <p>Loading contracts…</p>;
   if (!contracts.length) return <p>No contracts for this account.</p>;
+
+  const tones = Object.fromEntries(Object.entries(lines).map(([id, ls]) => [id, lineTones(ls)]));
 
   return (
     <>
@@ -167,7 +199,7 @@ export default function ContractsView() {
                             <tr key={l.sys_id}>
                               <td>{l.name}</td>
                               <td className="num">Qty {l.quantity}</td>
-                              <td><span className="pill">{l.state}</span></td>
+                              <td><span className={`pill ${tones[c.sys_id]?.[l.sys_id] ?? ''}`}>{l.state}</span></td>
                               <td>{l.starts || '—'} → {l.ends || '—'}</td>
                               <td className="num">{money(l.annual_recurring_price)}</td>
                               <td className="num">

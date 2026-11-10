@@ -113,7 +113,8 @@ export async function getContractLines(contractId) {
     o.sys_id = r.sys_id?.value ?? r.sys_id;
     o.offeringId = r.product_offering?.value ?? '';
     o.soldProductId = r.sold_product?.value ?? '';
-    o.isTopLine = !r.parent_contract_line?.value;
+    o.parentId = r.parent_contract_line?.value ?? '';
+    o.isTopLine = !o.parentId;
     return o;
   });
   // The query has no ordering, so the root can land anywhere. Put it first; sort is stable,
@@ -370,9 +371,9 @@ async function driveOrderToCompleted(orderId, note) {
 }
 
 // Terminates the contract whose top line has sold product `rootSoldProductId`.
-// Resolves with { orderNumber, lines, settled }: `lines` are the contract's lines
-// re-read after the platform's cascade; `settled` is false if they weren't all
-// Cancelled yet when we stopped waiting.
+// Resolves with { orderNumber, lines, settled, contractCancelled }: `lines` are the contract's
+// lines re-read after the platform's cascade; `settled` is false if they weren't all Cancelled
+// yet when we stopped waiting; `contractCancelled` is whether the contract header is Cancelled.
 // `effectiveDate` is the effective cancellation date, YYYY-MM-DD.
 export async function terminateContract({ contractId, rootSoldProductId, reason, effectiveDate, onProgress = () => {} }) {
   if (!rootSoldProductId) throw new Error('This contract’s top line has no sold product, so it can’t be disconnected');
@@ -410,5 +411,11 @@ export async function terminateContract({ contractId, rootSoldProductId, reason,
       { what: 'the contract lines to cancel', timeoutMs: 10_000, intervalMs: 2000 },
     ).catch(() => {});
   }
-  return { orderNumber: order.number, lines, settled: allCancelled(lines) };
+  const [header] = await snQuery(CONTRACT_TABLE, { query: `sys_id=${contractId}`, fields: ['state'], limit: 1 });
+  return {
+    orderNumber: order.number,
+    lines,
+    settled: allCancelled(lines),
+    contractCancelled: CANCELLED.test(header?.state ?? ''),
+  };
 }
