@@ -14,6 +14,11 @@ async function proxy(request, { params }) {
   const target = new URL(`${TENANT}/${params.path.join('/')}${request.nextUrl.search}`);
   const headers = new Headers(request.headers);
   HOP_BY_HOP.forEach((h) => headers.delete(h));
+  // Vercel adds forwarding headers (x-forwarded-*, x-vercel-*, forwarded) that
+  // the Logik tenant can choke on; locally they're absent. Send a clean request.
+  [...headers.keys()]
+    .filter((h) => h.startsWith('x-forwarded-') || h.startsWith('x-vercel-') || h === 'forwarded' || h === 'x-real-ip')
+    .forEach((h) => headers.delete(h));
 
   const hasBody = !['GET', 'HEAD'].includes(request.method);
   const bodyBuf = hasBody ? await request.arrayBuffer() : undefined;
@@ -23,6 +28,17 @@ async function proxy(request, { params }) {
     body: bodyBuf,
     redirect: 'manual',
   });
+
+  // TEMP debug: auth exchange diagnostics (names only, no values).
+  if (target.pathname.endsWith('/auth/exchange')) {
+    const raw = bodyBuf ? Buffer.from(bodyBuf).toString('utf8') : '';
+    console.log(
+      '[logik-exchange]', upstream.status,
+      'headers:', [...headers.keys()].join(','),
+      'fields:', [...new URLSearchParams(raw).keys()].join(','),
+      'resp:', upstream.status >= 400 ? (await upstream.clone().text()).slice(0, 500) : ''
+    );
+  }
 
   // TEMP debug: what Logik returns when a configuration is saved.
   if (request.nextUrl.searchParams.get('save') === 'true') {
