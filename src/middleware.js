@@ -28,7 +28,11 @@ export function middleware(request) {
     return new NextResponse('SN_INSTANCE is not configured', { status: 500 });
   }
 
-  const target = new URL(request.nextUrl.pathname + request.nextUrl.search, instance);
+  // The instance serves /<sys_id>.iix (product images etc.) only to browser sessions:
+  // with Basic auth it redirects to navpage.do. The attachment API accepts Basic auth.
+  const iix = request.nextUrl.pathname.match(/^\/([a-f0-9]{32})\.iix$/);
+  const path = iix ? `/api/now/attachment/${iix[1]}/file` : request.nextUrl.pathname + request.nextUrl.search;
+  const target = new URL(path, instance);
   const headers = new Headers(request.headers);
   headers.delete('host');
   headers.delete('cookie');
