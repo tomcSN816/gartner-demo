@@ -16,7 +16,10 @@ body {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   color: var(--text);
-  background: var(--bg);
+  /* Subtle full-page wash of the reseller's accent colour. */
+  /* !important: the embedded ServiceNow UX framework restyles body once it loads. */
+  background: color-mix(in srgb, var(--accent) 9%, var(--bg)) !important;
+  min-height: 100vh;
 }
 
 .container {
@@ -244,7 +247,7 @@ body {
   margin-left: 0.4rem;
   padding: 0 0.4rem;
   border-radius: 999px;
-  background: #0b5fff;
+  background: var(--accent);
   color: #fff;
   font-size: 0.75rem;
   font-weight: 600;
@@ -425,3 +428,162 @@ body {
 }
 
 .amend-banner { margin: 0 0 12px; }
+
+/* Cart table: fixed columns so prices line up row to row. */
+.cart-table {
+  table-layout: fixed;
+}
+.cart-table td,
+.cart-table th {
+  vertical-align: middle;
+}
+.cart-table td.num {
+  font-variant-numeric: tabular-nums;
+}
+.cart-table td:first-child {
+  overflow-wrap: anywhere;
+}
+.cart-table .cart-root td {
+  font-weight: 600;
+  background: var(--accent-tint, #f5f6f8);
+}
+.cart-table .act {
+  text-align: right;
+  padding-right: 1.1rem;
+}
+.cart-table tfoot td {
+  font-weight: 600;
+  border-top: 2px solid var(--border, #e2e5ea);
+  border-bottom: 0;
+}
+a.btn {
+  display: inline-block;
+  color: inherit;
+  text-decoration: none;
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
+/* Rounded corners need separate borders; collapse ignores border-radius. */
+.cart-table {
+  border-collapse: separate;
+  border-spacing: 0;
+  overflow: hidden;
+  margin-bottom: 1.5rem;
+}
+.cart-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.cart-group {
+  margin-bottom: 1.25rem;
+}
+.cart-group .cart-table {
+  margin-bottom: 0;
+}
+.cart-total td {
+  font-weight: 600;
+  border-bottom: 0;
+}
+.cart-table .act .btn + .btn {
+  margin-left: 0.4rem;
+}
+
+/* Same wide layout on every page; the nav stretches with it so edges align. */
+.container,
+.nav-inner {
+  max-width: min(1800px, 96vw);
+}
+
+/* Nav: brand | pages | reseller switch (pushed to the far right). */
+.nav-links {
+  flex: 1;
+  align-items: center;
+  margin-left: 2rem;
+}
+.nav-links .nav-signout {
+  margin-left: auto;
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+.nav-links .nav-signout:hover {
+  background: var(--accent-tint);
+  border-color: var(--accent);
+}
+@media (max-width: 720px) {
+  .nav-links {
+    margin-left: 0;
+    align-items: stretch;
+  }
+  .nav-links .nav-signout {
+    margin-left: 0;
+    margin-top: 0.5rem;
+    text-align: left;
+  }
+}
+
+/* Right-hand group: Switch reseller, then the cart and account icons at the end. */
+.nav-links .nav-icon {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.5rem 0.6rem;
+}
+.nav-links .nav-signout {
+  margin-right: 0.5rem;
+}
+
+/* Home */
+.hero {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.25rem;
+  padding: 2rem 2rem;
+  margin-bottom: 1.5rem;
+  border-radius: 12px;
+  background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 70%, #000));
+  color: #fff;
+}
+.hero h1 { margin: 0 0 0.25rem; }
+.hero p { margin: 0; opacity: 0.9; font-size: 1.05rem; }
+.hero-actions { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+.hero .btn { background: #fff; color: var(--text); border-color: #fff; }
+.hero .btn.primary { background: transparent; color: #fff; border-color: #fff; font-weight: 600; }
+.hero .btn.primary:hover { background: rgba(255, 255, 255, 0.15); }
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+.stat-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 1.1rem 1.25rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text);
+  text-decoration: none;
+}
+.stat-card:hover { border-color: var(--accent); background: var(--accent-tint); }
+.stat-label { color: var(--muted); font-size: 0.85rem; font-weight: 600; }
+.stat-value { font-size: 1.9rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.stat-note { color: var(--muted); font-size: 0.85rem; }
+
+.home-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 1rem;
+}
+.home-grid .card { margin: 0; background: var(--surface); border-color: var(--border); }
+.home-grid h2 { margin: 0 0 0.75rem; font-size: 1.05rem; }
+.mini-table { border: 0; }
+.mini-table td { padding: 0.5rem 0.25rem; }
+.mini-table tr:last-child td { border-bottom: 0; }
+.more { display: inline-block; margin-top: 0.5rem; color: var(--accent); text-decoration: none; font-weight: 600; }

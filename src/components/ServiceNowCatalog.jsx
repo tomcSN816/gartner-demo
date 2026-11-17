@@ -9,7 +9,7 @@ import {
   CONFIGURATOR_TEMPLATE_ID,
 } from '@/lib/catalogContext';
 import { CART_EVENTS, notifyCartChanged } from '@/lib/cartEvents';
-import { getSoldProductConfigInput } from '@/lib/servicenow';
+import { getSoldProductConfigInput, ensurePortalQuote } from '@/lib/servicenow';
 
 const CATALOG_EVENTS = [
   'PRODUCT_CATALOG#ADD_TO_CART',
@@ -25,7 +25,7 @@ const CONFIGURATOR_EVENTS = [
 
 // Mirrors the Product Catalog + Transaction configurator widgets on the
 // instance's Business Portal: Customize swaps the catalog for the configurator.
-export default function ServiceNowCatalog({ onEvent, logikLayout, logikTokens, amendLineId, amendLabel }) {
+export default function ServiceNowCatalog({ onEvent, logikLayout, logikTokens, amendLineId, amendLabel, quoteLineId, guidedProductId }) {
   const router = useRouter();
   const hostRef = useRef(null);
   const onEventRef = useRef(onEvent);
@@ -124,6 +124,18 @@ export default function ServiceNowCatalog({ onEvent, logikLayout, logikTokens, a
         await mod.getTemplates([CATALOG_TEMPLATE_ID, CONFIGURATOR_TEMPLATE_ID]);
         if (cancelled) return;
 
+        // Everything configured here commits into the portal's draft quote, whose
+        // lines keep their saved configuration so Reconfigure can reload it.
+        const quoteId = guidedProductId ? '' : await ensurePortalQuote();
+        if (cancelled) return;
+        const toQuote = (details) => {
+          details.headerId = quoteId;
+          details.nonEntityBasedFlow = false;
+          details.metadata.sourceEntityId = 'sn_l2c_quote';
+          details.metadata.sourceToTargetEntityId = 'sn_l2c_quote_to_quote';
+          return details;
+        };
+
         const entityDetails = buildEntityDetails();
 
         const catalog = document.createElement(`macroponent-${CATALOG_TEMPLATE_ID}`);
@@ -181,6 +193,40 @@ export default function ServiceNowCatalog({ onEvent, logikLayout, logikTokens, a
           configurator.style.display = 'block';
         };
 
+        // Arrived from the cart's Reconfigure button: reopen that quote line's
+        // saved configuration in place, as the instance's line Customize does.
+        const openQuoteLine = (lineId) => {
+          const details = toQuote(
+            buildEntityDetails({
+              timestamp: Date.now(),
+              lineId,
+              originTable: 'sn_quote_mgmt_core_quote_line_item',
+            }),
+          );
+          details.metadata.contextParams.skip_pricing = false;
+          configurator.setAttribute('channel', details.metadata.sourceSystem);
+          layoutActiveRef.current = true;
+          setTheme(true);
+          scan(document);
+          configurator.setAttribute('entity-details', JSON.stringify(details));
+          catalog.style.display = 'none';
+          configurator.style.display = 'block';
+        };
+
+        // Guided Selling: open one product's configurator straight away, with no
+        // catalog in between and nothing added to the portal quote.
+        const openGuided = () => {
+          const details = buildEntityDetails({ timestamp: Date.now(), productId: guidedProductId });
+          details.metadata.contextParams.skip_pricing = false;
+          layoutActiveRef.current = true;
+          setTheme(true);
+          scan(document);
+          configurator.setAttribute('entity-details', JSON.stringify(details));
+          configurator.setAttribute('channel', details.metadata.sourceSystem);
+          catalog.style.display = 'none';
+          configurator.style.display = 'block';
+        };
+
         mod.setEvents(catalog, {
           ...Object.fromEntries(
             CATALOG_EVENTS.map((name) => [name, (e) => emit(name, e.detail?.payload)])
@@ -196,6 +242,8 @@ export default function ServiceNowCatalog({ onEvent, logikLayout, logikTokens, a
             // Net effect of the widget's handler + server script when
             // advanced configuration is enabled: pricing is not skipped.
             details.metadata.contextParams.skip_pricing = false;
+
+            toQuote(details);
 
             // Logik calls from here on carry layout=<reseller layout>.
             layoutActiveRef.current = true;
@@ -215,8 +263,16 @@ export default function ServiceNowCatalog({ onEvent, logikLayout, logikTokens, a
               name,
               (e) => {
                 emit(name, e.detail?.payload);
+                if (guidedProductId) {
+                  openGuided(); // start a fresh session instead of falling back to the catalog
+                  return;
+                }
                 if (amendLineId && name.endsWith('COMMIT_REPONSE')) {
                   router.push('/orders');
+                  return;
+                }
+                if (quoteLineId && name.endsWith('COMMIT_REPONSE')) {
+                  router.push('/cart');
                   return;
                 }
                 showCatalog();
@@ -230,6 +286,8 @@ export default function ServiceNowCatalog({ onEvent, logikLayout, logikTokens, a
         // Arrived from a contract line's Amend button: open that line's saved
         // configuration (as the instance's "Modify entire line" does).
         if (amendLineId) await openAmendment(amendLineId);
+        else if (quoteLineId) openQuoteLine(quoteLineId);
+        else if (guidedProductId) openGuided();
       } catch (e) {
         console.error('[catalog] failed to mount', e);
         setError(String(e));
@@ -248,11 +306,16 @@ export default function ServiceNowCatalog({ onEvent, logikLayout, logikTokens, a
   }, []);
 
   return (
-    <div>
+    <div className="sn-embed">
       {status === 'loading' && <p>Loading catalog…</p>}
       {amendLineId && (
         <div className="card amend-banner">
           <span className="pill">Amendment</span> {amendLabel || 'Modifying an existing contract line'}
+        </div>
+      )}
+      {quoteLineId && (
+        <div className="card amend-banner">
+          <span className="pill">Reconfigure</span> {amendLabel || 'Editing a cart line'}
         </div>
       )}
       {status === 'error' && <div className="embed-empty">Catalog failed to load: {error}</div>}

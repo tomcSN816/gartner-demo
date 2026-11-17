@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { RESELLERS, RESELLER_COOKIE } from '@/lib/resellers';
 
@@ -9,6 +9,17 @@ export default function LoginForm() {
   const router = useRouter();
   const [selected, setSelected] = useState(RESELLERS[0].id);
   const reseller = RESELLERS.find((r) => r.id === selected);
+  const defaultEmail = `buyer@${selected}.example.com`;
+  // Follows the selected reseller until the user types their own address.
+  const [typedEmail, setTypedEmail] = useState(null);
+  const email = typedEmail ?? defaultEmail;
+
+  // Tint the whole page with the selected reseller's palette while choosing.
+  useEffect(() => {
+    const entries = Object.entries(reseller.theme);
+    entries.forEach(([k, v]) => document.body.style.setProperty(k, v));
+    return () => entries.forEach(([k]) => document.body.style.removeProperty(k));
+  }, [reseller]);
 
   const onSubmit = (e) => {
     e.preventDefault();
@@ -42,7 +53,7 @@ export default function LoginForm() {
 
       <label className="login-field">
         Email
-        <input type="email" defaultValue={`buyer@${selected}.example.com`} />
+        <input type="email" value={email} onChange={(e) => setTypedEmail(e.target.value)} />
       </label>
       <label className="login-field">
         Password

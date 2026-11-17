@@ -5,8 +5,9 @@
 // contact/opened_by and the default cart price list for pricelist. We proxy
 // as the SN_USERNAME user ("admin"), so these are that user's sys_id and the
 // "Standard Price List" (USD) on the configured instance.
-const PRICELIST_ID = '94ed8a972bb243104deaf02ac891bf4f';
-const USER_ID = '4bf687c02bd38f104deaf02ac891bfe3'; // Jack Thompson (Southern Cross Analytics contact)
+export const PRICELIST_ID = '94ed8a972bb243104deaf02ac891bf4f';
+const USER_ID = '4bf687c02bd38f104deaf02ac891bfe3';
+export const CONTACT_ID = USER_ID; // Jack Thompson (Southern Cross Analytics contact)
 export const ACCOUNT_ID = 'b6d547003b5bcb10d5260fa693e45a4e'; // Southern Cross Analytics (ACCT0010047)
 
 export function buildEntityDetails(overrides = {}) {

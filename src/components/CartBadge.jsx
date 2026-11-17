@@ -4,6 +4,8 @@ import useCart from '@/hooks/useCart';
 
 export default function CartBadge() {
   const { lines } = useCart();
-  if (!lines.length) return null;
-  return <span className="cart-badge">{lines.length}</span>;
+  // Count products (top-level lines), not every child line beneath them.
+  const count = lines.filter((l) => !l.parent_line_item).length;
+  if (!count) return null;
+  return <span className="cart-badge">{count}</span>;
 }

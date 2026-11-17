@@ -15,6 +15,7 @@ export default function CatalogPage({ searchParams }) {
         logikTokens={getLogikTokens(reseller)}
         amendLineId={searchParams?.amendLine}
         amendLabel={searchParams?.label}
+        quoteLineId={searchParams?.quoteLine}
       />
     </>
   );

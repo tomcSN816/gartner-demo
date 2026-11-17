@@ -1,4 +1,4 @@
-import { ACCOUNT_ID } from '@/lib/catalogContext';
+import { ACCOUNT_ID, CONTACT_ID, PRICELIST_ID } from '@/lib/catalogContext';
 
 // Read-only Table API access through the same-origin proxy (src/middleware.js).
 export async function snQuery(table, { query, fields, limit = 25, orderByDesc, displayValue = 'true' } = {}) {
@@ -22,16 +22,17 @@ export async function snQuery(table, { query, fields, limit = 25, orderByDesc, d
   return (await res.json()).result;
 }
 
-export const CART_FIELDS = [
-  'sys_id', 'number', 'state', 'contact', 'price_list', 'currency',
-  'total_one_time_price', 'total_monthly_recurring_price',
-  'total_annual_recurring_price', 'total_amount', 'sys_created_on',
+// The portal's "cart" is a draft quote: unlike cart lines, quote lines keep each
+// line's saved configuration (config_instance_id), which Reconfigure reloads.
+export const QUOTE_FIELDS = [
+  'sys_id', 'number', 'state', 'total_one_time_price',
+  'total_monthly_recurring_price_v2', 'total_annual_recurring_price_v2', 'total_amount',
 ];
 
-export const CART_LINE_FIELDS = [
+export const QUOTE_LINE_FIELDS = [
   'sys_id', 'number', 'product_offering', 'quantity', 'unit_base_price',
-  'monthly_recurring_price', 'annual_recurring_price',
-  'cumulative_one_time_price', 'cumulative_net_price',
+  'monthly_recurring_price', 'annual_recurring_price', 'cumulative_one_time_price',
+  'cumulative_net_price', 'parent_line_item', 'config_instance_id',
 ];
 
 export const ORDER_FIELDS = [
@@ -44,20 +45,73 @@ export const ORDER_LINE_FIELDS = [
   'cumulative_net_price',
 ];
 
-// The cart the portal shows: the most recent one.
+const QUOTE_TABLE = 'sn_quote_mgmt_core_quote';
+const QUOTE_LINE_TABLE = 'sn_quote_mgmt_core_quote_line_item';
+const PORTAL_QUOTE_QUERY = `account=${ACCOUNT_ID}^state=draft^short_descriptionSTARTSWITHPortal quote`;
+
+// The portal's current quote (the most recent draft), or null.
 export async function getCurrentCart() {
-  const [cart] = await snQuery('sn_sales_cart', {
-    fields: CART_FIELDS,
+  const [quote] = await snQuery(QUOTE_TABLE, {
+    query: PORTAL_QUOTE_QUERY,
+    fields: QUOTE_FIELDS,
     limit: 1,
     orderByDesc: 'sys_created_on',
   });
-  return cart ?? null;
+  return quote ?? null;
 }
 
-export function getCartLines(cartId) {
-  return snQuery('sn_sales_cart_line_item', {
-    query: `cart=${cartId}`,
-    fields: CART_LINE_FIELDS,
+// Same, creating a draft quote first when there isn't one.
+export async function ensurePortalQuote() {
+  const [existing] = await snQuery(QUOTE_TABLE, {
+    query: PORTAL_QUOTE_QUERY,
+    fields: ['sys_id'],
+    limit: 1,
+    orderByDesc: 'sys_created_on',
+    displayValue: 'false',
+  });
+  if (existing) return existing.sys_id;
+  const res = await fetch('/api/now/table/' + QUOTE_TABLE + '?sysparm_fields=sys_id', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({
+      account: ACCOUNT_ID,
+      contact: CONTACT_ID,
+      price_list: PRICELIST_ID,
+      currency: 'USD',
+      quote_type: 'add',
+      header_type: 'new',
+      state: 'draft',
+      short_description: 'Portal quote',
+    }),
+  });
+  if (!res.ok) throw new Error(`Couldn’t create a quote (${res.status})`);
+  return (await res.json()).result.sys_id;
+}
+
+// Remove one product tree: its top-level line and everything beneath it.
+// Children go first so no line is ever left pointing at a deleted parent.
+export async function removeQuoteTree(topLineId) {
+  const lines = await snQuery(QUOTE_LINE_TABLE, {
+    query: `top_line_item=${topLineId}^ORsys_id=${topLineId}`,
+    fields: ['sys_id', 'parent_line_item'],
+    limit: 200,
+    displayValue: 'false',
+  });
+  const depth = (l) => {
+    let d = 0;
+    for (let p = l.parent_line_item; p && d < 20; d++) p = lines.find((x) => x.sys_id === p)?.parent_line_item;
+    return d;
+  };
+  for (const l of [...lines].sort((a, b) => depth(b) - depth(a))) {
+    const res = await fetch(`/api/now/table/${QUOTE_LINE_TABLE}/${l.sys_id}`, { method: 'DELETE' });
+    if (!res.ok && res.status !== 404) throw new Error(`Couldn’t remove a line (${res.status})`);
+  }
+}
+
+export function getCartLines(quoteId) {
+  return snQuery(QUOTE_LINE_TABLE, {
+    query: `quote=${quoteId}`,
+    fields: QUOTE_LINE_FIELDS,
     limit: 100,
   });
 }
@@ -66,6 +120,16 @@ export function getOrders() {
   return snQuery('sn_ind_tmt_orm_order', {
     fields: ORDER_FIELDS,
     limit: 25,
+    orderByDesc: 'sys_created_on',
+  });
+}
+
+// Orders for the portal's account only (getOrders lists every account's).
+export function getAccountOrders(limit = 5) {
+  return snQuery('sn_ind_tmt_orm_order', {
+    query: `account=${ACCOUNT_ID}`,
+    fields: ORDER_FIELDS,
+    limit,
     orderByDesc: 'sys_created_on',
   });
 }
