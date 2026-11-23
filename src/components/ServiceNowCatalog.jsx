@@ -25,8 +25,9 @@ const CONFIGURATOR_EVENTS = [
 
 // Mirrors the Product Catalog + Transaction configurator widgets on the
 // instance's Business Portal: Customize swaps the catalog for the configurator.
-export default function ServiceNowCatalog({ onEvent, logikLayout, logikTokens, amendLineId, amendLabel, quoteLineId, guidedProductId }) {
+export default function ServiceNowCatalog({ onEvent, logikLayout, logikTokens, urlParams, amendLineId, amendLabel, quoteLineId, guidedProductId }) {
   const router = useRouter();
+  const urlParamsRef = useRef(urlParams);
   const hostRef = useRef(null);
   const onEventRef = useRef(onEvent);
   // Logik `layout` param: set to the reseller's layout while configuring.
@@ -38,7 +39,8 @@ export default function ServiceNowCatalog({ onEvent, logikLayout, logikTokens, a
   useEffect(() => {
     logikLayoutRef.current = logikLayout;
     logikTokensRef.current = logikTokens;
-  }, [logikLayout, logikTokens]);
+    urlParamsRef.current = urlParams;
+  }, [logikLayout, logikTokens, urlParams]);
   const [status, setStatus] = useState('loading');
   const [error, setError] = useState('');
 
@@ -54,14 +56,18 @@ export default function ServiceNowCatalog({ onEvent, logikLayout, logikTokens, a
     const tenant = process.env.NEXT_PUBLIC_LOGIK_TENANT_URL;
     const nativeFetch = window.fetch;
     const nativeXhrOpen = XMLHttpRequest.prototype.open;
-    // Adds the reseller's Logik layout (after Configure is clicked).
-    const proxyPath = (url) => {
-      let path = `/logik${url.slice(tenant.length)}`;
+    const proxyPath = (url) => `/logik${url.slice(tenant.length)}`;
+
+    // Logik's own mechanism for choosing a layout: the `layout` attribute on
+    // <logik-ui> (a layout variableName). Logik sends it to the server as
+    // partnerData.layoutVarName and serves that layout. The ServiceNow wrapper
+    // creates <logik-ui> itself and never sets the attribute, so set it at creation.
+    const nativeCreateElement = document.createElement;
+    document.createElement = function (tag, ...rest) {
+      const el = nativeCreateElement.call(this, tag, ...rest);
       const layout = layoutActiveRef.current && logikLayoutRef.current;
-      if (layout && !/[?&]layout=/.test(path)) {
-        path += `${path.includes('?') ? '&' : '?'}layout=${encodeURIComponent(layout)}`;
-      }
-      return path;
+      if (layout && String(tag).toLowerCase() === 'logik-ui') el.setAttribute('layout', layout);
+      return el;
     };
     if (tenant) {
       // The Logik UI makes its API calls with axios, which uses XHR.
@@ -87,7 +93,18 @@ export default function ServiceNowCatalog({ onEvent, logikLayout, logikTokens, a
     const sheet = new CSSStyleSheet();
     const adopted = new WeakSet();
     const observers = [];
+    // Reflect the active theme/layout in the address bar while configuring.
+    const syncUrl = (on) => {
+      const params = urlParamsRef.current;
+      if (!params) return;
+      const url = new URL(window.location.href);
+      Object.entries(params).forEach(([k, v]) =>
+        on ? url.searchParams.set(k, v) : url.searchParams.delete(k)
+      );
+      window.history.replaceState(window.history.state, '', url);
+    };
     const setTheme = (on) => {
+      syncUrl(on);
       const tokens = logikTokensRef.current;
       if (!on || !tokens) return sheet.replaceSync('');
       const decls = Object.entries(tokens)
@@ -302,6 +319,7 @@ export default function ServiceNowCatalog({ onEvent, logikLayout, logikTokens, a
       document.adoptedStyleSheets = document.adoptedStyleSheets.filter((x) => x !== sheet);
       window.fetch = nativeFetch;
       XMLHttpRequest.prototype.open = nativeXhrOpen;
+      document.createElement = nativeCreateElement;
     };
   }, []);
 
