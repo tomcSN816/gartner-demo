@@ -18,7 +18,7 @@ export const RESELLERS = [
     name: 'Northwind Technologies',
     tagline: 'Enterprise IT, delivered.',
     initials: 'NW',
-    logikLayout: 'solanaRevenueEnablementLayout',
+    logikLayout: 'layoutNorthwind',
     theme: {
       '--accent': '#0b5fff',
       '--accent-tint': '#e8f0ff',
@@ -34,7 +34,7 @@ export const RESELLERS = [
     name: 'Contoso Cloud',
     tagline: 'Your partner in the cloud.',
     initials: 'CC',
-    logikLayout: 'solX2Dre01_default_1792603067326',
+    logikLayout: 'layoutContoso',
     theme: {
       '--accent': '#0f8a5f',
       '--accent-tint': '#e3f5ee',
@@ -50,7 +50,7 @@ export const RESELLERS = [
     name: 'Apex Systems',
     tagline: 'Solutions at the summit.',
     initials: 'AS',
-    logikLayout: '3',
+    logikLayout: 'layoutApex',
     theme: {
       '--accent': '#e05a00',
       '--accent-tint': '#fff0e5',
@@ -65,6 +65,26 @@ export const RESELLERS = [
 
 export function getReseller(id) {
   return RESELLERS.find((r) => r.id === id) || null;
+}
+
+// Resolve the embedded configurator's look. URL params win over the login
+// cookie so the page URL visibly drives the theme:
+//   ?reseller=<id>   -> that reseller's --lgk-* colour tokens (and its layout)
+//   ?layout=<name>   -> Logik layout sent as layout=<name> on tenant calls
+export function resolveConfiguratorStyle(cookieReseller, searchParams = {}) {
+  const urlReseller = getReseller(searchParams.reseller);
+  const base = urlReseller || cookieReseller;
+  const urlLayout = typeof searchParams.layout === 'string' ? searchParams.layout : '';
+  return {
+    layout: urlLayout || base.logikLayout,
+    tokens: getLogikTokens(base),
+    // What the configurator is actually using; written to the address bar on Customize.
+    active: { reseller: base.id, layout: urlLayout || base.logikLayout },
+    params: {
+      ...(urlReseller && { reseller: urlReseller.id }),
+      ...(urlLayout && { layout: urlLayout }),
+    },
+  };
 }
 
 function shade(hex, amount) {
